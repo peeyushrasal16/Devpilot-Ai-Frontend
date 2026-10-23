@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, Calendar, Shield } from 'lucide-react';
+import { Users, Plus, Calendar } from 'lucide-react';
 import projectMemberApi from '../../api/projectMemberApi';
+import projectApi from '../../api/projectApi';
 import DataTable from '../../components/tables/DataTable';
 import StatusBadge from '../../components/common/StatusBadge';
 import ConfirmModal from '../../components/common/ConfirmModal';
@@ -11,6 +12,7 @@ export const ProjectMembers = () => {
   const { success, error: toastError } = useToast();
 
   const [members, setMembers] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -28,8 +30,12 @@ export const ProjectMembers = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await projectMemberApi.getAll();
-      setMembers(Array.isArray(data) ? data : []);
+      const [memberData, projectData] = await Promise.all([
+        projectMemberApi.getAll(),
+        projectApi.getAll().catch(() => []),
+      ]);
+      setMembers(Array.isArray(memberData) ? memberData : []);
+      setProjects(Array.isArray(projectData) ? projectData : []);
     } catch (err) {
       setError(err.userMessage || 'Failed to load project members.');
     } finally {
@@ -85,30 +91,31 @@ export const ProjectMembers = () => {
 
   const columns = [
     {
-      header: 'ID',
-      key: 'id',
-      render: (row) => <span className="font-mono text-xs text-slate-400">#{row.id}</span>,
-    },
-    {
-      header: 'User ID',
+      header: 'Team Member',
       key: 'userId',
       render: (row) => (
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-xs">
-            U
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-xs">
+            {row.userName ? row.userName.charAt(0).toUpperCase() : 'U'}
           </div>
-          <span className="font-semibold text-white">User #{row.userId}</span>
+          <span className="font-semibold text-white">
+            {row.userName || `User #${row.userId}`}
+          </span>
         </div>
       ),
     },
     {
-      header: 'Project ID',
+      header: 'Project',
       key: 'projectId',
-      render: (row) => (
-        <span className="text-xs font-mono bg-slate-800/80 px-2 py-1 rounded-md text-slate-300 border border-slate-700">
-          Project #{row.projectId}
-        </span>
-      ),
+      render: (row) => {
+        const foundProject = projects.find((p) => String(p.id) === String(row.projectId));
+        const projName = row.projectName || (foundProject ? foundProject.name : `Project #${row.projectId}`);
+        return (
+          <span className="text-xs font-semibold text-slate-200 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/60">
+            {projName}
+          </span>
+        );
+      },
     },
     {
       header: 'Assigned Role',
@@ -188,6 +195,7 @@ export const ProjectMembers = () => {
         }}
         onSubmit={handleCreateOrUpdate}
         initialData={editingMember}
+        existingMembers={members}
         isSubmitting={isSubmitting}
       />
 

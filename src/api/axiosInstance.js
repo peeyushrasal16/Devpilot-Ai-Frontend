@@ -60,17 +60,26 @@ axiosInstance.interceptors.response.use(
       switch (status) {
         case 401:
           friendlyMessage =
-            serverMessage || 'Invalid email or password.';
+            serverMessage || 'Session expired or unauthorized request. Please sign in again.';
 
-          // Only redirect if not already on login / admin / register pages
-          if (
-            !window.location.pathname.startsWith('/login') &&
-            !window.location.pathname.startsWith('/admin') &&
-            !window.location.pathname.startsWith('/register')
-          ) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            window.location.href = '/login?expired=true';
+          // Only redirect if explicit token expiration or invalid signature
+          const isExplicitTokenExpired =
+            typeof serverMessage === 'string' &&
+            (serverMessage.toLowerCase().includes('jwt expired') ||
+             serverMessage.toLowerCase().includes('token expired'));
+
+          if (isExplicitTokenExpired) {
+            const currentPath = window.location.pathname;
+            const isAuthPage =
+              currentPath.startsWith('/login') ||
+              currentPath.startsWith('/admin') ||
+              currentPath.startsWith('/register');
+
+            if (!isAuthPage) {
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              window.location.href = '/login?expired=true';
+            }
           }
           break;
 

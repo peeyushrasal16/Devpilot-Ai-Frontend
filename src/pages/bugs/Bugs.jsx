@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Bug, Calendar, FolderGit2 } from 'lucide-react';
+import projectApi from '../../api/projectApi';
 import bugApi from '../../api/bugApi';
 import DataTable from '../../components/tables/DataTable';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -14,6 +15,7 @@ export const Bugs = () => {
   const { success, error: toastError } = useToast();
 
   const [bugs, setBugs] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -34,8 +36,12 @@ export const Bugs = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await bugApi.getAll();
+      const [data, projData] = await Promise.all([
+        bugApi.getAll(),
+        projectApi.getAll().catch(() => []),
+      ]);
       setBugs(Array.isArray(data) ? data : []);
+      setProjects(Array.isArray(projData) ? projData : []);
     } catch (err) {
       setError(err.userMessage || 'Failed to load bugs from server.');
     } finally {
@@ -138,13 +144,16 @@ export const Bugs = () => {
       ),
     },
     {
-      header: 'Project ID',
+      header: 'Project',
       key: 'projectId',
-      render: (row) => (
-        <span className="text-xs text-slate-400 font-mono">
-          {row.projectId ? `#${row.projectId}` : 'None'}
-        </span>
-      ),
+      render: (row) => {
+        const proj = projects.find((p) => p.id === row.projectId);
+        return (
+          <span className="text-xs text-slate-300 font-medium">
+            {proj ? proj.name : row.projectId ? `Project #${row.projectId}` : 'Unassigned'}
+          </span>
+        );
+      },
     },
   ];
 

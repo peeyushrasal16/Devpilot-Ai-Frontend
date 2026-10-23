@@ -29,12 +29,6 @@ export const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
       roles: ['ADMIN', 'PROJECT_MANAGER', 'DEVELOPER'],
     },
     {
-      title: 'DevPilot AI',
-      path: '/ai',
-      icon: Sparkles,
-      roles: ['ADMIN', 'PROJECT_MANAGER', 'DEVELOPER'],
-    },
-    {
       title: 'Users',
       path: '/users',
       icon: Shield,

@@ -7,10 +7,14 @@ import StatusBadge from '../../components/common/StatusBadge';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import ProjectForm from './ProjectForm';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 export const Projects = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { success, error: toastError } = useToast();
+
+  const isDeveloper = user?.role === 'DEVELOPER';
 
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -83,7 +87,7 @@ export const Projects = () => {
     {
       header: 'ID',
       key: 'id',
-      render: (row) => <span className="font-mono text-xs text-slate-400">#{row.id}</span>,
+      render: (row, serialNumber) => <span className="font-mono text-xs text-slate-400">#{serialNumber ?? row.id}</span>,
     },
     {
       header: 'Project Name',
@@ -138,16 +142,18 @@ export const Projects = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setEditingProject(null);
-            setFormOpen(true);
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all shadow-lg shadow-brand-600/20"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Project</span>
-        </button>
+        {!isDeveloper && (
+          <button
+            onClick={() => {
+              setEditingProject(null);
+              setFormOpen(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all shadow-lg shadow-brand-600/20"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Project</span>
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -160,21 +166,21 @@ export const Projects = () => {
         searchPlaceholder="Search projects by name or description..."
         searchKeys={['name', 'description', 'status']}
         onView={(row) => navigate(`/projects/${row.id}`)}
-        onEdit={(row) => {
+        onEdit={!isDeveloper ? (row) => {
           setEditingProject(row);
           setFormOpen(true);
-        }}
-        onDelete={(row) => {
+        } : undefined}
+        onDelete={!isDeveloper ? (row) => {
           setProjectToDelete(row);
           setDeleteModalOpen(true);
-        }}
+        } : undefined}
         emptyTitle="No projects registered yet"
         emptyDescription="Create your first development project to begin tracking tasks, bugs, and documentation."
-        emptyActionLabel="Create First Project"
-        onEmptyAction={() => {
+        emptyActionLabel={!isDeveloper ? "Create First Project" : undefined}
+        onEmptyAction={!isDeveloper ? () => {
           setEditingProject(null);
           setFormOpen(true);
-        }}
+        } : undefined}
       />
 
       {/* Form Modal */}

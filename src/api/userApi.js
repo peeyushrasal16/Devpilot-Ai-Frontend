@@ -7,7 +7,13 @@ export const userApi = {
     return response.data;
   },
 
-  // GET /users/exists?email=...
+  // GET /users - returns list of users [{ id, name, role }]
+  getAll: async () => {
+    const response = await axiosInstance.get('/users');
+    return response.data;
+  },
+
+  // GET /users/exists?email=... or /users/check-email?email=...
   checkEmailExists: async (email) => {
     try {
       const response = await axiosInstance.get('/users/exists', {
@@ -15,8 +21,14 @@ export const userApi = {
       });
       return response.data; // boolean
     } catch {
-      // In case /users/** is strictly restricted to ADMIN or email check endpoint
-      return false;
+      try {
+        const fallback = await axiosInstance.get('/users/check-email', {
+          params: { email },
+        });
+        return fallback.data;
+      } catch {
+        return false;
+      }
     }
   },
 };

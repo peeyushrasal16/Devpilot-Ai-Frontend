@@ -16,6 +16,11 @@ export const taskAssignmentApi = {
     return response.data;
   },
 
+  update: async (id, assignmentData) => {
+    const response = await axiosInstance.put(`/task-assignments/${id}`, assignmentData);
+    return response.data;
+  },
+
   delete: async (id) => {
     const response = await axiosInstance.delete(`/task-assignments/${id}`);
     return response.data;

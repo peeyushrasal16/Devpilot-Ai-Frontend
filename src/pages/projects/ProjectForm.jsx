@@ -7,6 +7,7 @@ export const ProjectForm = ({ isOpen, onClose, onSubmit, initialData = null, isS
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -17,6 +18,9 @@ export const ProjectForm = ({ isOpen, onClose, onSubmit, initialData = null, isS
       endDate: '',
     },
   });
+
+  const startDateVal = watch('startDate');
+  const todayStr = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     if (initialData) {
@@ -117,9 +121,18 @@ export const ProjectForm = ({ isOpen, onClose, onSubmit, initialData = null, isS
               </label>
               <input
                 type="date"
-                {...register('endDate')}
+                min={startDateVal || todayStr}
+                {...register('endDate', {
+                  validate: (val) => {
+                    if (!val || !startDateVal) return true;
+                    return val >= startDateVal || 'End date cannot be before start date';
+                  },
+                })}
                 className="w-full px-3 py-2 bg-slate-950/60 border border-slate-700/80 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
               />
+              {errors.endDate && (
+                <p className="text-rose-400 text-xs mt-1">{errors.endDate.message}</p>
+              )}
             </div>
           </div>
 

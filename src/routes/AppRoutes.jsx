@@ -3,6 +3,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
 import AppLayout from '../components/layout/AppLayout';
 
+// Public Landing Page
+import Landing from '../pages/landing/Landing';
+
 // Auth Pages
 import Login from '../pages/auth/Login';
 import Register from '../pages/auth/Register';
@@ -45,6 +48,9 @@ import Users from '../pages/users/Users';
 export const AppRoutes = () => {
   return (
     <Routes>
+      {/* Public Landing & Overview Page */}
+      <Route path="/welcome" element={<Landing />} />
+
       {/* Public Authentication Routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />

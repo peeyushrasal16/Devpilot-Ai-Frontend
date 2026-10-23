@@ -181,11 +181,14 @@ export const DataTable = ({
                   key={row.id || idx}
                   className="hover:bg-slate-800/40 transition-colors group"
                 >
-                  {columns.map((col) => (
-                    <td key={col.key || col.header} className="px-5 py-4 whitespace-nowrap">
-                      {col.render ? col.render(row) : row[col.key]}
-                    </td>
-                  ))}
+                  {columns.map((col) => {
+                    const serialNumber = (currentPage - 1) * pageSize + idx + 1;
+                    return (
+                      <td key={col.key || col.header} className="px-5 py-4 whitespace-nowrap">
+                        {col.render ? col.render(row, serialNumber) : row[col.key]}
+                      </td>
+                    );
+                  })}
                   {hasActions && (
                     <td className="px-5 py-4 whitespace-nowrap text-right">
                       <div className="flex items-center justify-end gap-2">

@@ -13,6 +13,10 @@ export const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   }
 
   if (!isAuthenticated) {
+    // If user opened the website root '/', take them to the DevPilot AI overview /welcome page
+    if (location.pathname === '/') {
+      return <Navigate to="/welcome" replace />;
+    }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

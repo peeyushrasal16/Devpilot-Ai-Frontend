@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { Plus, UserCheck, Calendar, X, Loader2 } from 'lucide-react';
 import taskAssignmentApi from '../../api/taskAssignmentApi';
 import taskApi from '../../api/taskApi';
+import userApi from '../../api/userApi';
 import DataTable from '../../components/tables/DataTable';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import { useToast } from '../../context/ToastContext';
@@ -12,6 +13,7 @@ export const TaskAssignments = () => {
 
   const [assignments, setAssignments] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -40,12 +42,24 @@ export const TaskAssignments = () => {
     setLoading(true);
     setError(null);
     try {
-      const [assignData, taskData] = await Promise.all([
-        taskAssignmentApi.getAll(),
+      const [assignData, taskData, userData] = await Promise.all([
+        taskAssignmentApi.getAll().catch((err) => {
+          console.warn('task-assignments endpoint returned error:', err);
+          return null;
+        }),
         taskApi.getAll().catch(() => []),
+        userApi.getAll().catch(() => []),
       ]);
-      setAssignments(Array.isArray(assignData) ? assignData : []);
+
+      if (assignData !== null) {
+        setAssignments(Array.isArray(assignData) ? assignData : []);
+      } else {
+        // Fallback: If 401 on /task-assignments, show notice or empty list
+        setAssignments([]);
+        setError('Task assignments could not be loaded (Unauthorized). Please ensure you are logged in with proper permissions.');
+      }
       setTasks(Array.isArray(taskData) ? taskData : []);
+      setUsers(Array.isArray(userData) ? userData : []);
     } catch (err) {
       setError(err.userMessage || 'Failed to load task assignments.');
     } finally {
@@ -93,19 +107,24 @@ export const TaskAssignments = () => {
 
   const columns = [
     {
-      header: 'Assignment ID',
+      header: 'ID',
       key: 'id',
-      render: (row) => <span className="font-mono text-xs text-slate-400">#{row.id}</span>,
+      render: (row, serialNumber) => <span className="font-mono text-xs text-slate-400">#{serialNumber ?? row.id}</span>,
     },
     {
-      header: 'Developer (User ID)',
+      header: 'Assigned Developer',
       key: 'userId',
       render: (row) => (
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400 font-bold text-xs">
-            U
+            {row.userName ? row.userName.charAt(0).toUpperCase() : 'U'}
           </div>
-          <span className="font-semibold text-white">Developer #{row.userId}</span>
+          <div>
+            <span className="font-semibold text-white block">
+              {row.userName || `Developer #${row.userId}`}
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono">ID: #{row.userId}</span>
+          </div>
         </div>
       ),
     },
@@ -204,14 +223,30 @@ export const TaskAssignments = () => {
             <form onSubmit={handleSubmit(handleCreateAssignment)} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Developer (User ID) *
+                  Developer *
                 </label>
-                <input
-                  type="number"
-                  {...register('userId', { required: 'User ID is required' })}
-                  placeholder="e.g. 1"
-                  className="w-full px-4 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500"
-                />
+                {users.length > 0 ? (
+                  <select
+                    {...register('userId', { required: 'Developer selection is required' })}
+                    className="w-full px-3 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500"
+                  >
+                    <option value="">Select Developer</option>
+                    {users
+                      .filter((u) => u.role === 'DEVELOPER' || u.role === 'PROJECT_MANAGER' || !u.role)
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.role || 'DEVELOPER'})
+                        </option>
+                      ))}
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    {...register('userId', { required: 'User ID is required' })}
+                    placeholder="Developer User ID (e.g. 1)"
+                    className="w-full px-4 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500"
+                  />
+                )}
                 {errors.userId && (
                   <p className="text-rose-400 text-xs mt-1">{errors.userId.message}</p>
                 )}

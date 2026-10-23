@@ -45,22 +45,56 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden">
+    // <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-x-hidden overflow-y-auto">
       {/* Background Glow Accents */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-brand-600/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-md relative z-10">
+      {/* Top Navigation Bar with DevPilot Info & Quick Register/Login */}
+      {/* <header className="absolute top-0 left-0 right-0 p-4 sm:p-6 flex items-center justify-between max-w-6xl mx-auto w-full z-20"> */}
+      <header className="absolute top-0 left-0 right-0 p-4 sm:p-6 sm:px-4 flex items-center justify-between max-w-6xl mx-auto w-full z-20">
+        <Link to="/welcome" className="flex items-center gap-2.5 group">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-brand-600/30 group-hover:scale-105 transition-transform">
+            <Sparkles className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <span className="font-extrabold text-base text-white tracking-tight">
+              DevPilot <span className="text-brand-400">AI</span>
+            </span>
+            {/* <span className="hidden sm:inline-block ml-2 text-xs text-slate-400 font-medium">
+              • Next-Gen Jira-Inspired Sprint Platform
+            </span> */}
+          </div>
+        </Link>
+
+        <div className="flex items-center gap-3">
+          <Link
+            to="/welcome"
+            className="px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors"
+          >
+            About & Overview
+          </Link>
+          <Link
+            to="/register"
+            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition-all shadow-md shadow-brand-600/20"
+          >
+            Create Account
+          </Link>
+        </div>
+      </header>
+
+      <div className="w-full max-w-md relative z-10 mt-12 sm:mt-8">
         {/* Brand Logo & Heading */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 shadow-xl shadow-brand-600/30 mb-4 border border-brand-400/30">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 shadow-xl shadow-brand-600/30 mb-3 border border-brand-400/30">
             <Sparkles className="w-7 h-7 text-white" />
           </div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight">
             DevPilot <span className="text-brand-400">AI</span>
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
-            AI-Powered Developer Project Management
+          <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-sm mx-auto">
+            Manage sprints, tasks, bug triage, team assignments, and AI engineering assistance in one unified platform.
           </p>
         </div>
 

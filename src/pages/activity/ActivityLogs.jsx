@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Plus, Activity, Calendar, X, Loader2 } from 'lucide-react';
 import activityLogApi from '../../api/activityLogApi';
+import projectApi from '../../api/projectApi';
 import DataTable from '../../components/tables/DataTable';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import { useAuth } from '../../context/AuthContext';
@@ -12,6 +13,7 @@ export const ActivityLogs = () => {
   const { success, error: toastError } = useToast();
 
   const [logs, setLogs] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -41,8 +43,12 @@ export const ActivityLogs = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await activityLogApi.getAll();
+      const [data, projData] = await Promise.all([
+        activityLogApi.getAll(),
+        projectApi.getAll().catch(() => []),
+      ]);
       setLogs(Array.isArray(data) ? data : []);
+      setProjects(Array.isArray(projData) ? projData : []);
     } catch (err) {
       setError(err.userMessage || 'Failed to load activity logs.');
     } finally {
@@ -239,14 +245,19 @@ export const ActivityLogs = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Associated Project ID
+                  Associated Project
                 </label>
-                <input
-                  type="number"
+                <select
                   {...register('projectId')}
-                  placeholder="Optional numeric Project ID"
                   className="w-full px-4 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500"
-                />
+                >
+                  <option value="">Select Project (Optional)</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">

@@ -2,18 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, CheckSquare, Calendar, Filter } from 'lucide-react';
 import taskApi from '../../api/taskApi';
+import projectApi from '../../api/projectApi';
+import taskAssignmentApi from '../../api/taskAssignmentApi';
 import DataTable from '../../components/tables/DataTable';
 import StatusBadge from '../../components/common/StatusBadge';
 import PriorityBadge from '../../components/common/PriorityBadge';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import TaskForm from './TaskForm';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 export const Tasks = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { success, error: toastError } = useToast();
 
+  const isDeveloper = user?.role === 'DEVELOPER';
+
   const [tasks, setTasks] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -30,12 +38,57 @@ export const Tasks = () => {
   const [taskToDelete, setTaskToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // const fetchTasks = async () => {
+  //   setLoading(true);
+  //   setError(null);
+  //   try {
+  //     const [data, projData, assignData] = await Promise.all([
+  //       taskApi.getAll(),
+  //       projectApi.getAll().catch(() => []),
+  //       taskAssignmentApi.getAll().catch(() => []),
+  //     ]);
+  //     console.log('Task assignments API response:', assignData);
+  //     setTasks(Array.isArray(data) ? data : []);
+  //     setProjects(Array.isArray(projData) ? projData : []);
+  //     setAssignments(Array.isArray(assignData) ? assignData : []);
+  //   } catch (err) {
+  //     setError(err.userMessage || 'Failed to load tasks from server.');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
   const fetchTasks = async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await taskApi.getAll();
-      setTasks(Array.isArray(data) ? data : []);
+      const [data, projData, assignData] = await Promise.all([
+        taskApi.getAll(),
+        projectApi.getAll().catch(() => []),
+        taskAssignmentApi.getAll().catch((err) => {
+          console.warn('Could not fetch global task assignments (401/Unauthorized):', err);
+          return [];
+        }),
+      ]);
+
+      const tasksList = Array.isArray(data) ? data : [];
+      setTasks(tasksList);
+      setProjects(Array.isArray(projData) ? projData : []);
+
+      // Fallback: If global assignment endpoint returns empty/401, check if tasks contain inline assignment data
+      let resolvedAssignments = Array.isArray(assignData) ? assignData : [];
+      if (resolvedAssignments.length === 0) {
+        resolvedAssignments = tasksList
+          .filter((t) => t.assignedUser || t.userId || t.assignee)
+          .map((t) => ({
+            taskId: t.id,
+            userId: t.assignedUser?.id || t.userId,
+            userName: t.assignedUser?.name || t.assigneeName,
+            user: t.assignedUser || { id: t.userId, name: t.assigneeName }
+          }));
+      }
+
+      setAssignments(resolvedAssignments);
     } catch (err) {
       setError(err.userMessage || 'Failed to load tasks from server.');
     } finally {
@@ -51,20 +104,67 @@ export const Tasks = () => {
     setIsSubmitting(true);
     try {
       const payload = {
-        ...formData,
+        title: formData.title,
+        description: formData.description,
+        status: formData.status,
+        priority: formData.priority,
+        dueDate: formData.dueDate,
         projectId: formData.projectId ? Number(formData.projectId) : null,
       };
+
+      let savedTaskId = editingTask ? editingTask.id : null;
 
       if (editingTask) {
         await taskApi.update(editingTask.id, payload);
         success('Task updated successfully!');
       } else {
-        await taskApi.create(payload);
+        const created = await taskApi.create(payload);
+        savedTaskId = created?.id;
         success('Task created successfully!');
       }
+
+      // Handle task assignment to developer
+      if (savedTaskId) {
+        const existingAssignment = assignments.find(
+  (a) => String(a.taskId ?? a.task?.id) === String(savedTaskId)
+);
+        if (formData.assignedUserId) {
+          const targetUserId = Number(formData.assignedUserId);
+          try {
+            if (existingAssignment) {
+              if (Number(existingAssignment.userId) !== targetUserId) {
+                await taskAssignmentApi.update(existingAssignment.id, {
+                  userId: targetUserId,
+                  taskId: Number(savedTaskId),
+                });
+              }
+            } else {
+              await taskAssignmentApi.create({
+                userId: targetUserId,
+                taskId: Number(savedTaskId),
+              });
+            }
+          } catch (assignErr) {
+            console.error('Task assignment failed:', assignErr);
+             toastError(
+    assignErr.response?.data?.message ||
+    assignErr.userMessage ||
+    'Task updated, but developer assignment failed.'
+  );
+          }
+        } else if (existingAssignment) {
+          // If developer was unassigned
+          try {
+            await taskAssignmentApi.delete(existingAssignment.id);
+          } catch (assignErr) {
+            console.error('Task unassignment failed:', assignErr);
+          }
+        }
+      }
+
       setFormOpen(false);
       setEditingTask(null);
-      fetchTasks();
+      await fetchTasks();
     } catch (err) {
       toastError(err.userMessage || 'Failed to save task.');
     } finally {
@@ -72,31 +172,94 @@ export const Tasks = () => {
     }
   };
 
-  const handleDelete = async () => {
-    if (!taskToDelete) return;
-    setIsDeleting(true);
-    try {
-      await taskApi.delete(taskToDelete.id);
-      success(`Task "${taskToDelete.title}" deleted.`);
-      setDeleteModalOpen(false);
-      setTaskToDelete(null);
-      fetchTasks();
-    } catch (err) {
-      toastError(err.userMessage || 'Failed to delete task.');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+  // const handleDelete = async () => {
+  //   if (!taskToDelete) return;
+  //   setIsDeleting(true);
+  //   try {
+  //     await taskApi.delete(taskToDelete.id);
+  //     success(`Task "${taskToDelete.title}" deleted.`);
+  //     setDeleteModalOpen(false);
+  //     setTaskToDelete(null);
+  //     fetchTasks();
+  //   } catch (err) {
+  //     toastError(err.userMessage || 'Failed to delete task.');
+  //   } finally {
+  //     setIsDeleting(false);
+  //   }
+  // };
+
+  
+const handleDelete = async () => {
+  if (!taskToDelete) return;
+
+  setIsDeleting(true);
+
+  try {
+    await taskApi.delete(taskToDelete.id);
+
+    success(`Task "${taskToDelete.title}" deleted.`);
+    setDeleteModalOpen(false);
+    setTaskToDelete(null);
+
+    await fetchTasks();
+  } catch (err) {
+    console.error('Delete task failed:', err.response?.status);
+    console.error('Backend error:', err.response?.data);
+    console.error('Full error:', err);
+
+    toastError(
+      err.userMessage || 'Failed to delete task.'
+    );
+  } finally {
+    setIsDeleting(false);
+  }
+};
+
+
+  // If user is a DEVELOPER, only show tasks assigned to this developer
+  const currentUserId = user?.id;
+  const currentUserName = user?.name ? user.name.trim().toLowerCase() : '';
+  const currentUserEmail = user?.email ? user.email.trim().toLowerCase() : '';
+
+  const visibleTasks = isDeveloper
+    ? tasks.filter((t) => {
+        const assign = assignments.find(
+          (a) => String(a.taskId ?? a.task?.id) === String(t.id)
+        );
+        if (!assign) return false;
+        
+        const assignUserId = assign.userId ?? assign.user?.id;
+        const assignUserName = (assign.userName ?? assign.user?.name ?? '').trim().toLowerCase();
+        const assignUserEmail = (assign.user?.email ?? '').trim().toLowerCase();
+
+        // Match by user ID
+        if (currentUserId && assignUserId && String(assignUserId) === String(currentUserId)) {
+          return true;
+        }
+
+        // Match by user Name
+        if (currentUserName && assignUserName && assignUserName === currentUserName) {
+          return true;
+        }
+
+        // Match by user Email
+        if (currentUserEmail && assignUserEmail && assignUserEmail === currentUserEmail) {
+          return true;
+        }
+
+        return false;
+      })
+    : tasks;
 
   const filteredTasks = statusFilter === 'ALL'
-    ? tasks
-    : tasks.filter((t) => t.status === statusFilter);
+    ? visibleTasks
+    : visibleTasks.filter((t) => t.status === statusFilter);
 
   const columns = [
     {
       header: 'ID',
       key: 'id',
-      render: (row) => <span className="font-mono text-xs text-slate-400">#{row.id}</span>,
+      render: (row, serialNumber) => <span className="font-mono text-xs text-slate-400">#{serialNumber ?? row.id}</span>,
     },
     {
       header: 'Task Title',
@@ -139,13 +302,32 @@ export const Tasks = () => {
       ),
     },
     {
-      header: 'Project ID',
+      header: 'Project',
       key: 'projectId',
-      render: (row) => (
-        <span className="text-xs text-slate-400 font-mono">
-          {row.projectId ? `#${row.projectId}` : 'None'}
-        </span>
-      ),
+      render: (row) => {
+        const proj = projects.find((p) => p.id === row.projectId);
+        const name = row.projectName || (proj ? proj.name : (row.projectId ? `Project #${row.projectId}` : 'Unassigned'));
+        return (
+          <span className="text-xs text-slate-300 font-medium">
+            {name}
+          </span>
+        );
+      },
+    },
+    {
+      header: 'Assigned To',
+      key: 'assignedTo',
+      render: (row) => {
+        const assign = assignments.find((a) => String(a.taskId ?? a.task?.id) === String(row.id));
+        if (!assign) {
+          return <span className="text-xs text-slate-500 italic">Unassigned</span>;
+        }
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-brand-500/10 text-brand-300 text-xs font-medium border border-brand-500/20">
+            {assign.userName || assign.user?.name || `Developer #${assign.userId ?? assign.user?.id}`}
+          </span>
+        );
+      },
     },
   ];
 
@@ -163,16 +345,18 @@ export const Tasks = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setEditingTask(null);
-            setFormOpen(true);
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all shadow-lg shadow-brand-600/20"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Task</span>
-        </button>
+        {!isDeveloper && (
+          <button
+            onClick={() => {
+              setEditingTask(null);
+              setFormOpen(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all shadow-lg shadow-brand-600/20"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Task</span>
+          </button>
+        )}
       </div>
 
       {/* Filter Tabs */}
@@ -189,7 +373,7 @@ export const Tasks = () => {
           >
             {st === 'ALL' ? 'All Tasks' : st.replace('_', ' ')}
             <span className="ml-1.5 opacity-60">
-              ({st === 'ALL' ? tasks.length : tasks.filter((t) => t.status === st).length})
+              ({st === 'ALL' ? visibleTasks.length : visibleTasks.filter((t) => t.status === st).length})
             </span>
           </button>
         ))}
@@ -209,17 +393,29 @@ export const Tasks = () => {
           setEditingTask(row);
           setFormOpen(true);
         }}
-        onDelete={(row) => {
-          setTaskToDelete(row);
-          setDeleteModalOpen(true);
-        }}
+        onDelete={
+          !isDeveloper
+            ? (row) => {
+                setTaskToDelete(row);
+                setDeleteModalOpen(true);
+              }
+            : undefined
+        }
         emptyTitle="No tasks found"
-        emptyDescription="Create a task to kickstart your sprint workflow."
-        emptyActionLabel="Create First Task"
-        onEmptyAction={() => {
-          setEditingTask(null);
-          setFormOpen(true);
-        }}
+        emptyDescription={
+          isDeveloper
+            ? 'No tasks assigned to your sprint yet.'
+            : 'Create a task to kickstart your sprint workflow.'
+        }
+        emptyActionLabel={!isDeveloper ? 'Create First Task' : undefined}
+        onEmptyAction={
+          !isDeveloper
+            ? () => {
+                setEditingTask(null);
+                setFormOpen(true);
+              }
+            : undefined
+        }
       />
 
       {/* Form Modal */}
@@ -231,6 +427,14 @@ export const Tasks = () => {
         }}
         onSubmit={handleCreateOrUpdate}
         initialData={editingTask}
+        initialAssigneeId={
+  editingTask
+    ? assignments.find(
+        (a) =>
+          String(a.taskId ?? a.task?.id) === String(editingTask.id)
+      )?.userId ?? ''
+    : ''
+}
         isSubmitting={isSubmitting}
       />
 
